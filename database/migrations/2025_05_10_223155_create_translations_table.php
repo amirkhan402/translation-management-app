@@ -19,6 +19,9 @@ return new class extends Migration
             $table->string('locale')->index();
             $table->text('value');
             $table->timestamps();
+
+            // Ensure unique combination of key and locale
+            $table->unique(['key', 'locale']);
         });
     }
 
