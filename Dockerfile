@@ -24,6 +24,11 @@ RUN useradd -G www-data,root -u 1000 -d /home/dev dev
 RUN mkdir -p /home/dev/.composer && \
     chown -R dev:dev /home/dev
 
+# Create database directory with proper permissions
+RUN mkdir -p /var/www/database && \
+    chown -R dev:www-data /var/www/database && \
+    chmod -R 775 /var/www/database
+
 # Set working directory
 WORKDIR /var/www
 

@@ -10,6 +10,7 @@ services:
     working_dir: /var/www/
     volumes:
       - ./:/var/www
+      - ./database/database.sqlite:/var/www/database/database.sqlite
     networks:
       - tms-network
 
@@ -21,6 +22,7 @@ services:
       - "8000:80"
     volumes:
       - ./:/var/www
+      - ./database/database.sqlite:/var/www/database/database.sqlite
     command: >
       /bin/sh -c "echo 'server {
           listen 80;
@@ -67,4 +69,6 @@ networks:
 
 volumes:
   dbdata:
+    driver: local
+  database:
     driver: local 
