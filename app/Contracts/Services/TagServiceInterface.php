@@ -11,12 +11,18 @@ use Illuminate\Pagination\LengthAwarePaginator;
 interface TagServiceInterface
 {
     /**
+     * Default number of items per page for pagination.
+     */
+    public const DEFAULT_PER_PAGE = 15;
+
+    /**
      * Get all tags with their related data.
      *
      * @param int $perPage Number of items per page
+     * @param array<string, mixed> $filters Optional filters to apply
      * @return LengthAwarePaginator
      */
-    public function getAll(int $perPage = 15): LengthAwarePaginator;
+    public function getAll(int $perPage = self::DEFAULT_PER_PAGE, array $filters = []): LengthAwarePaginator;
 
     /**
      * Get all tags with their translation keys and translations.
@@ -25,7 +31,7 @@ interface TagServiceInterface
      * @param int $perPage Number of items per page
      * @return LengthAwarePaginator
      */
-    public function getAllWithTranslations(int $perPage = 15): LengthAwarePaginator;
+    public function getAllWithTranslations(int $perPage = self::DEFAULT_PER_PAGE): LengthAwarePaginator;
 
     /**
      * Create a new tag.
@@ -63,13 +69,4 @@ interface TagServiceInterface
      * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
      */
     public function delete(string $id): void;
-
-    /**
-     * Search tags by name.
-     *
-     * @param string|null $name
-     * @param int $perPage Number of items per page
-     * @return LengthAwarePaginator
-     */
-    public function searchByName(?string $name, int $perPage = 15): LengthAwarePaginator;
-} 
+}

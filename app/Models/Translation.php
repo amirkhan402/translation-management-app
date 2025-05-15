@@ -47,7 +47,8 @@ class Translation extends Model
     // Many-to-many relationship with Tag
     public function tags(): BelongsToMany
     {
-        return $this->belongsToMany(Tag::class);
+        return $this->belongsToMany(Tag::class, 'tag_translation_key', 'translation_key_id', 'tag_id')
+            ->withTimestamps();
     }
 
     // Scope for searching by tag name

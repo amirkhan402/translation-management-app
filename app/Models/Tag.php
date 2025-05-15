@@ -38,7 +38,8 @@ class Tag extends Model
     // Many-to-many relationship with Translation
     public function translations(): BelongsToMany
     {
-        return $this->belongsToMany(Translation::class);
+        return $this->belongsToMany(Translation::class, 'tag_translation_key', 'tag_id', 'translation_key_id')
+            ->withTimestamps();
     }
 
     /**

@@ -15,24 +15,39 @@ use Illuminate\Support\Facades\DB;
 class TagService implements TagServiceInterface
 {
     /**
-     * Default number of items per page for pagination.
-     */
-    private const DEFAULT_PER_PAGE = 15;
-
-    /**
      * Get all tags with their related data.
      *
      * @param int $perPage Number of items per page
+     * @param array<string, mixed> $filters Optional filters to apply
      * @return LengthAwarePaginator
      */
-    public function getAll(int $perPage = self::DEFAULT_PER_PAGE): LengthAwarePaginator
+    public function getAll(int $perPage = self::DEFAULT_PER_PAGE, array $filters = []): LengthAwarePaginator
     {
         try {
-            // Get paginated tags with a limited number of translation keys
-            $tags = Tag::with(['translationKeys' => function ($query) {
+            Log::info('Starting to fetch tags', [
+                'perPage' => $perPage,
+                'filters' => $filters
+            ]);
+
+            $query = Tag::with(['translationKeys' => function ($query) {
                 $query->select('translation_keys.id', 'translation_keys.key')
                     ->limit(100); // Limit the number of translation keys per tag
-            }])->paginate($perPage);
+            }]);
+
+            // Apply filters using when pattern
+            $query->when(
+                isset($filters['name']),
+                fn($query) => $query->searchByName($filters['name'])
+            );
+
+            $tags = $query->paginate($perPage);
+
+            Log::info('Successfully fetched tags', [
+                'total' => $tags->total(),
+                'perPage' => $tags->perPage(),
+                'currentPage' => $tags->currentPage(),
+                'hasFilters' => !empty($filters)
+            ]);
 
             return $tags;
         } catch (\Exception $e) {
@@ -40,7 +55,8 @@ class TagService implements TagServiceInterface
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'line' => $e->getLine(),
-                'file' => $e->getFile()
+                'file' => $e->getFile(),
+                'filters' => $filters
             ]);
             throw $e;
         }
@@ -63,12 +79,19 @@ class TagService implements TagServiceInterface
      * Create a new tag.
      *
      * @param array<string, mixed> $data
+     * @throws \Illuminate\Database\UniqueConstraintViolationException
      * @throws \Exception
      */
     public function create(array $data): Tag
     {
         try {
             return Tag::create($data);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            Log::warning('Attempted to create tag with duplicate name', [
+                'name' => $data['name'],
+                'error' => $e->getMessage()
+            ]);
+            throw new \Exception("A tag with name '{$data['name']}' already exists.");
         } catch (\Exception $e) {
             Log::error('Error creating tag', [
                 'error' => $e->getMessage(),
@@ -158,18 +181,4 @@ class TagService implements TagServiceInterface
             throw $e;
         }
     }
-
-    /**
-     * Search tags by name.
-     *
-     * @param string|null $name
-     * @param int $perPage Number of items per page
-     * @return LengthAwarePaginator
-     */
-    public function searchByName(?string $name, int $perPage = self::DEFAULT_PER_PAGE): LengthAwarePaginator
-    {
-        return Tag::searchByName($name)
-            ->with(['translationKeys'])
-            ->paginate($perPage);
-    }
-} 
+}

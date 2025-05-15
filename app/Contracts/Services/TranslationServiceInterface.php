@@ -6,15 +6,42 @@ namespace App\Contracts\Services;
 
 use App\Models\Translation;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 interface TranslationServiceInterface
 {
     /**
+     * Default number of items per page for pagination.
+     */
+    public const DEFAULT_PER_PAGE = 15;
+
+    /**
+     * Cache key for translations export.
+     */
+    public const EXPORT_CACHE_KEY = 'translations_export';
+
+    /**
+     * Cache duration for translations export in seconds.
+     */
+    public const EXPORT_CACHE_DURATION = 60;
+
+    /**
      * Get all translations with their related data.
      *
-     * @return Collection<int, Translation>
+     * @param int $perPage Number of items per page
+     * @param array<string, mixed> $filters
+     * @return \Illuminate\Pagination\LengthAwarePaginator
      */
-    public function getAll(): Collection;
+    public function getAll(int $perPage = self::DEFAULT_PER_PAGE, array $filters = []): LengthAwarePaginator;
+
+    /**
+     * Get all translations with their translation keys and tags.
+     * Use this method when you need full translation data.
+     *
+     * @param int $perPage Number of items per page
+     * @return \Illuminate\Pagination\LengthAwarePaginator
+     */
+    public function getAllWithRelations(int $perPage = self::DEFAULT_PER_PAGE): \Illuminate\Pagination\LengthAwarePaginator;
 
     /**
      * Create a new translation.
@@ -46,14 +73,6 @@ interface TranslationServiceInterface
     public function delete(string $id): void;
 
     /**
-     * Bulk create translations.
-     *
-     * @param array<int, array<string, mixed>> $translations
-     * @return Collection<int, Translation>
-     */
-    public function bulkCreate(array $translations): Collection;
-
-    /**
      * Export translations in a format suitable for frontend use.
      *
      * @return array<int, array<string, mixed>>
@@ -61,10 +80,7 @@ interface TranslationServiceInterface
     public function export(): array;
 
     /**
-     * Search translations by various criteria.
-     *
-     * @param array<string, mixed> $filters
-     * @return Collection<int, Translation>
+     * Clear the translations export cache.
      */
-    public function search(array $filters): Collection;
-} 
+    public function clearExportCache(): void;
+}

@@ -23,11 +23,6 @@ use App\Models\Tag;
  */
 class TagController extends Controller
 {
-    /**
-     * Default number of items per page for pagination.
-     */
-    private const DEFAULT_PER_PAGE = 15;
-
     public function __construct(
         private readonly TagServiceInterface $tagService,
         private readonly TagTransformer $transformer
@@ -37,10 +32,17 @@ class TagController extends Controller
     /**
      * @OA\Get(
      *     path="/api/tags",
-     *     summary="List all tags",
-     *     description="Retrieve a paginated list of tags with their translation keys. By default, only translation keys are included without their translations for better performance.",
+     *     summary="List all tags with optional name filter",
+     *     description="Retrieve a paginated list of tags with their translation keys. Supports filtering by name and pagination.",
      *     tags={"Tags"},
      *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="name",
+     *         in="query",
+     *         description="Filter tags by name (case-insensitive partial match)",
+     *         required=false,
+     *         @OA\Schema(type="string", example="mobile")
+     *     ),
      *     @OA\Parameter(
      *         name="page",
      *         in="query",
@@ -114,19 +116,39 @@ class TagController extends Controller
      *             @OA\Property(property="success", type="boolean", example=false),
      *             @OA\Property(property="message", type="string", example="An error occurred while retrieving tags.")
      *         )
+     *     ),
+     *     @OA\Examples(
+     *         example="Basic listing",
+     *         summary="Get all tags (paginated)",
+     *         value={"GET": "/api/tags?per_page=20"}
+     *     ),
+     *     @OA\Examples(
+     *         example="Search by name",
+     *         summary="Search tags by name",
+     *         value={"GET": "/api/tags?name=mobile&per_page=20"}
      *     )
      * )
      */
     public function index(): JsonResponse
     {
         try {
-            $perPage = request()->input('per_page', self::DEFAULT_PER_PAGE);
-            $tags = $this->tagService->getAll((int) $perPage);
+            $perPage = min((int) request()->input('per_page', TagServiceInterface::DEFAULT_PER_PAGE), 100);
+            
+            // Get filter parameters
+            $filters = [
+                'name' => request()->query('name')
+            ];
+
+            // Remove null filters
+            $filters = array_filter($filters, fn($value) => $value !== null);
+
+            $tags = $this->tagService->getAll($perPage, $filters);
             return $this->successResponse($this->transformer->transformPaginated($tags));
         } catch (\Exception $e) {
             Log::error('Error retrieving tags', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'filters' => $filters ?? []
             ]);
             
             return $this->errorResponse(
@@ -139,7 +161,7 @@ class TagController extends Controller
 
     /**
      * @OA\Post(
-     *     path="/api/tags",
+     *     path="/api/tag",
      *     summary="Create a new tag",
      *     description="Create a new tag with the provided name. The name must be unique.",
      *     tags={"Tags"},
@@ -187,19 +209,38 @@ class TagController extends Controller
      *     ),
      *     @OA\Response(
      *         response=422,
-     *         description="Validation error",
+     *         description="Validation error or duplicate tag name",
      *         @OA\JsonContent(
-     *             @OA\Property(property="success", type="boolean", example=false),
-     *             @OA\Property(property="message", type="string", example="The given data was invalid."),
-     *             @OA\Property(
-     *                 property="errors",
-     *                 type="object",
-     *                 @OA\Property(
-     *                     property="name",
-     *                     type="array",
-     *                     @OA\Items(type="string", example="The name field is required.")
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     type="object",
+     *                     @OA\Property(property="success", type="boolean", example=false),
+     *                     @OA\Property(property="message", type="string", example="The given data was invalid."),
+     *                     @OA\Property(
+     *                         property="errors",
+     *                         type="object",
+     *                         @OA\Property(
+     *                             property="name",
+     *                             type="array",
+     *                             @OA\Items(type="string", example="The name field is required.")
+     *                         )
+     *                     )
+     *                 ),
+     *                 @OA\Schema(
+     *                     type="object",
+     *                     @OA\Property(property="success", type="boolean", example=false),
+     *                     @OA\Property(property="message", type="string", example="A tag with name 'tablet' already exists."),
+     *                     @OA\Property(
+     *                         property="errors",
+     *                         type="object",
+     *                         @OA\Property(
+     *                             property="name",
+     *                             type="array",
+     *                             @OA\Items(type="string", example="A tag with this name already exists.")
+     *                         )
+     *                     )
      *                 )
-     *             )
+     *             }
      *         )
      *     ),
      *     @OA\Response(
@@ -228,6 +269,15 @@ class TagController extends Controller
                 'data' => $request->validated()
             ]);
             
+            // Check if this is a duplicate tag name error
+            if (str_contains($e->getMessage(), "A tag with name")) {
+                return $this->errorResponse(
+                    $e->getMessage(),
+                    ['name' => ['A tag with this name already exists.']],
+                    Response::HTTP_UNPROCESSABLE_ENTITY
+                );
+            }
+            
             return $this->errorResponse(
                 'An error occurred while creating the tag.',
                 null,
@@ -238,7 +288,7 @@ class TagController extends Controller
 
     /**
      * @OA\Get(
-     *     path="/api/tags/{id}",
+     *     path="/api/tag/{id}",
      *     summary="Get a tag by id",
      *     description="Retrieve a specific tag by its UUID. By default, only translation keys are included without their translations for better performance.",
      *     tags={"Tags"},
@@ -332,7 +382,7 @@ class TagController extends Controller
 
     /**
      * @OA\Put(
-     *     path="/api/tags/{id}",
+     *     path="/api/tag/{id}",
      *     summary="Update a tag",
      *     description="Update an existing tag's name. The name must be unique.",
      *     tags={"Tags"},
@@ -451,7 +501,7 @@ class TagController extends Controller
 
     /**
      * @OA\Delete(
-     *     path="/api/tags/{id}",
+     *     path="/api/tag/{id}",
      *     summary="Delete a tag",
      *     description="Delete a tag by its UUID. This will also remove all associations with translation keys.",
      *     tags={"Tags"},
@@ -464,30 +514,37 @@ class TagController extends Controller
      *         @OA\Schema(type="string", format="uuid")
      *     ),
      *     @OA\Response(
-     *         response=204,
-     *         description="Tag deleted successfully.",
+     *         response=200,
+     *         description="Tag deleted successfully",
      *         @OA\JsonContent(
-     *             @OA\Property(
-     *                 property="data",
-     *                 type="object",
-     *                 @OA\Property(property="success", type="boolean", example=true),
-     *                 @OA\Property(property="message", type="string", example="Tag deleted successfully"),
-     *                 @OA\Property(property="data", type="null")
-     *             )
+     *             type="object",
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Tag deleted successfully")
      *         )
      *     ),
      *     @OA\Response(
-     *         response=401,
-     *         description="Unauthorized",
+     *         response=400,
+     *         description="Invalid UUID format",
      *         @OA\JsonContent(
+     *             type="object",
      *             @OA\Property(property="success", type="boolean", example=false),
-     *             @OA\Property(property="message", type="string", example="Unauthenticated.")
+     *             @OA\Property(property="message", type="string", example="Invalid UUID format"),
+     *             @OA\Property(
+     *                 property="errors",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="id",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The provided ID is not a valid UUID.")
+     *                 )
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=404,
      *         description="Tag not found",
      *         @OA\JsonContent(
+     *             type="object",
      *             @OA\Property(property="success", type="boolean", example=false),
      *             @OA\Property(property="message", type="string", example="Tag not found (id: 550e8400-e29b-41d4-a716-446655440000)")
      *         )
@@ -496,6 +553,7 @@ class TagController extends Controller
      *         response=500,
      *         description="Server error",
      *         @OA\JsonContent(
+     *             type="object",
      *             @OA\Property(property="success", type="boolean", example=false),
      *             @OA\Property(property="message", type="string", example="An error occurred while deleting the tag.")
      *         )
@@ -505,14 +563,16 @@ class TagController extends Controller
     public function destroy(string $id): JsonResponse
     {
         try {
+            if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)) {
+                return $this->errorResponse(
+                    "Invalid UUID format",
+                    ['id' => ['The provided ID is not a valid UUID.']],
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+
             $this->tagService->delete($id);
-            return response()->json([
-                'data' => [
-                    'success' => true,
-                    'message' => 'Tag deleted successfully',
-                    'data' => null
-                ]
-            ], Response::HTTP_NO_CONTENT);
+            return $this->successResponse(null, 'Tag deleted successfully');
         } catch (ModelNotFoundException $e) {
             return $this->errorResponse(
                 "Tag not found (id: {$id})",
