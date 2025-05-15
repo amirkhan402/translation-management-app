@@ -29,7 +29,11 @@ RUN mkdir -p /var/www/database && \
     chown -R dev:www-data /var/www/database && \
     chmod -R 775 /var/www/database
 
+# Copy custom PHP-FPM and PHP configurations
+COPY docker/php-fpm/custom.conf /usr/local/etc/php-fpm.d/custom.conf
+COPY docker/php-fpm/php.ini /usr/local/etc/php/conf.d/custom.ini
+
 # Set working directory
 WORKDIR /var/www
 
-USER dev 
+USER dev

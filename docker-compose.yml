@@ -28,6 +28,15 @@ services:
           listen 80;
           index index.php index.html;
           root /var/www/public;
+          
+          # Timeout settings
+          fastcgi_read_timeout 300;
+          fastcgi_send_timeout 300;
+          fastcgi_connect_timeout 300;
+          proxy_read_timeout 300;
+          proxy_connect_timeout 300;
+          proxy_send_timeout 300;
+          
           location ~ \.php$ {
               try_files $$uri =404;
               fastcgi_split_path_info ^(.+\.php)(/.+)$;
@@ -36,6 +45,11 @@ services:
               include fastcgi_params;
               fastcgi_param SCRIPT_FILENAME $$document_root$$fastcgi_script_name;
               fastcgi_param PATH_INFO $$fastcgi_path_info;
+              
+              # PHP-FPM timeout settings
+              fastcgi_read_timeout 300;
+              fastcgi_send_timeout 300;
+              fastcgi_connect_timeout 300;
           }
           location / {
               try_files $$uri $$uri/ /index.php?$$query_string;
@@ -71,4 +85,4 @@ volumes:
   dbdata:
     driver: local
   database:
-    driver: local 
+    driver: local
